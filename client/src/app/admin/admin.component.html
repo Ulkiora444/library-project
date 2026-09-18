@@ -1,0 +1,493 @@
+<main class="admin-page" [ngClass]="'theme-' + theme">
+  <aside class="admin-sidebar">
+    <div class="sidebar-brand">
+      <span>L</span>
+      <div>
+        <strong>Library</strong>
+        <small>{{ t('admin') }}</small>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Resources">
+      <button
+        *ngFor="let resource of resources"
+        type="button"
+        [class.active]="resource.endpoint === selectedResource.endpoint"
+        (click)="selectResource(resource)"
+      >
+        {{ resourceLabel(resource) }}
+      </button>
+    </nav>
+  </aside>
+
+  <section class="admin-main">
+    <header class="admin-topbar">
+      <div>
+        <p>{{ t('activeSection') }}</p>
+        <h1>{{ resourceLabel(selectedResource) }}</h1>
+      </div>
+
+      <div class="topbar-actions">
+        <label class="select-field">
+          <span>{{ t('language') }}</span>
+          <select [ngModel]="language" (ngModelChange)="setLanguageValue($event)">
+            <option *ngFor="let item of languages" [ngValue]="item.key">
+              {{ item.label }}
+            </option>
+          </select>
+        </label>
+
+        <label class="select-field">
+          <span>{{ t('theme') }}</span>
+          <select [ngModel]="theme" (ngModelChange)="setThemeValue($event)">
+            <option *ngFor="let item of themes" [ngValue]="item.key">
+              {{ t(item.labelKey) }}
+            </option>
+          </select>
+        </label>
+
+        <button type="button" class="button secondary" (click)="logout()">{{ t('logout') }}</button>
+      </div>
+    </header>
+
+    <section class="admin-summary">
+      <article>
+        <span>{{ rows.length }}</span>
+        <p>{{ t('records') }}</p>
+      </article>
+      <article>
+          <span>{{ selectedResource.fields.length }}</span>
+        <p>{{ t('fields') }}</p>
+      </article>
+      <article>
+        <span>{{ editingId ? '#' + editingId : t('new') }}</span>
+        <p>{{ t('mode') }}</p>
+      </article>
+    </section>
+
+    <section class="resource-note">
+      <div>
+        <strong>{{ t('smartHint') }}</strong>
+        <p>{{ selectedResource.description[language] }}</p>
+      </div>
+      <code>/api/{{ selectedResource.endpoint }}</code>
+    </section>
+
+    <section class="admin-workspace">
+      <form class="admin-panel editor-panel" (ngSubmit)="save()">
+        <div class="panel-head">
+          <div>
+            <p>{{ t('editor') }}</p>
+            <h2>{{ editingId ? t('edit') + ' #' + editingId : t('create') }}</h2>
+          </div>
+          <button type="button" class="button secondary" (click)="resetForm()">{{ t('clear') }}</button>
+        </div>
+
+        <div class="form-grid">
+          <div class="admin-field" *ngFor="let field of selectedResource.fields">
+            <span>{{ fieldLabel(field) }}</span>
+            <select
+              *ngIf="isRelationField(field); else textField"
+              [name]="field.key"
+              [ngModel]="form[field.key]"
+              (ngModelChange)="setFieldValue(field, $event)"
+            >
+              <option [ngValue]="''">-</option>
+              <option *ngFor="let option of relationOptionsFor(field)" [ngValue]="optionId(option)">
+                {{ relationOptionLabel(option) }}
+              </option>
+            </select>
+            <ng-template #textField>
+              <ng-container *ngIf="isFileField(field); else basicField">
+                <div class="image-upload">
+                  <div class="image-preview" [class.empty]="!imagePreview(field)">
+                    <img
+                      *ngIf="imagePreview(field) as preview; else emptyImage"
+                      [src]="preview"
+                      [alt]="fieldLabel(field)"
+                    />
+                    <ng-template #emptyImage>
+                      <span>{{ fieldLabel(field).slice(0, 1) }}</span>
+                    </ng-template>
+                  </div>
+
+                  <div class="image-upload-info">
+                    <div class="file-button">
+                      <span>{{ imageActionLabel(field) }}</span>
+                      <input
+                        class="image-file-input"
+                        type="file"
+                        [name]="field.key"
+                        accept="image/*"
+                        (change)="onFileChange($event, field)"
+                      />
+                    </div>
+                    <small class="file-hint">
+                      {{ selectedFileLabel(field) || t('noImage') }}
+                    </small>
+                  </div>
+                </div>
+              </ng-container>
+              <ng-template #basicField>
+                <ng-container *ngIf="isBooleanField(field); else inputField">
+                  <label class="switch-control">
+                    <input
+                      type="checkbox"
+                      [name]="field.key"
+                      [ngModel]="booleanFieldValue(field)"
+                      (ngModelChange)="setBooleanFieldValue(field, $event)"
+                    />
+                    <span class="switch-track"><span></span></span>
+                    <strong>{{ booleanStateLabel(field) }}</strong>
+                  </label>
+                </ng-container>
+                <ng-template #inputField>
+                  <input
+                    [type]="field.type"
+                    [name]="field.key"
+                    [(ngModel)]="form[field.key]"
+                  />
+                </ng-template>
+              </ng-template>
+            </ng-template>
+          </div>
+        </div>
+
+        <section class="book-links-panel" *ngIf="isBooksResource()">
+          <div class="multi-select-field">
+            <span>{{ columnLabel('authors') }}</span>
+            <div class="search-select">
+              <input
+                type="text"
+                name="bookAuthorSearch"
+                [placeholder]="columnLabel('authors')"
+                [(ngModel)]="bookAuthorSearch"
+              />
+              <div class="search-select-menu" *ngIf="filteredBookAuthorOptions().length">
+                <button
+                  *ngFor="let author of filteredBookAuthorOptions()"
+                  type="button"
+                  (click)="addBookAuthor(optionId(author))"
+                >
+                  {{ relationOptionLabel(author) }}
+                </button>
+              </div>
+            </div>
+            <div class="selected-tags" *ngIf="selectedBookAuthors().length">
+              <button
+                *ngFor="let author of selectedBookAuthors()"
+                type="button"
+                (click)="toggleBookAuthor(optionId(author))"
+              >
+                {{ relationOptionLabel(author) }}
+                <span>x</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="multi-select-field">
+            <span>{{ columnLabel('categories') }}</span>
+            <div class="search-select">
+              <input
+                type="text"
+                name="bookCategorySearch"
+                [placeholder]="columnLabel('categories')"
+                [(ngModel)]="bookCategorySearch"
+              />
+              <div class="search-select-menu" *ngIf="filteredBookCategoryOptions().length">
+                <button
+                  *ngFor="let category of filteredBookCategoryOptions()"
+                  type="button"
+                  (click)="addBookCategory(optionId(category))"
+                >
+                  {{ relationOptionLabel(category) }}
+                </button>
+              </div>
+            </div>
+            <div class="selected-tags" *ngIf="selectedBookCategories().length">
+              <button
+                *ngFor="let category of selectedBookCategories()"
+                type="button"
+                (click)="toggleBookCategory(optionId(category))"
+              >
+                {{ relationOptionLabel(category) }}
+                <span>x</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="book-links-panel" *ngIf="isCollectionsResource()">
+          <div class="multi-select-field">
+            <span>{{ columnLabel('books') }}</span>
+            <div class="search-select">
+              <input
+                type="text"
+                name="collectionBookSearch"
+                [placeholder]="columnLabel('books')"
+                [(ngModel)]="collectionBookSearch"
+              />
+              <div class="search-select-menu" *ngIf="filteredCollectionBookOptions().length">
+                <button
+                  *ngFor="let book of filteredCollectionBookOptions()"
+                  type="button"
+                  (click)="addCollectionBook(optionId(book))"
+                >
+                  {{ relationOptionLabel(book) }}
+                </button>
+              </div>
+            </div>
+            <div class="selected-tags" *ngIf="selectedCollectionBooks().length">
+              <button
+                *ngFor="let book of selectedCollectionBooks()"
+                type="button"
+                (click)="toggleCollectionBook(optionId(book))"
+              >
+                {{ relationOptionLabel(book) }}
+                <span>x</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="book-content-panel" *ngIf="bookContentKind() as contentKind">
+          <div class="book-content-head">
+            <div>
+              <strong>{{ bookContentTitle(contentKind) }}</strong>
+              <p>{{ t('bookContentHint') }}</p>
+            </div>
+            <span>{{ contentKind.toUpperCase() }}</span>
+          </div>
+
+          <ng-container *ngIf="isImageBookContentKind(contentKind); else singleBookContentFile">
+            <div class="manga-images-upload">
+              <label class="chapter-field">
+                <span>{{ t('chapterNumber') }}</span>
+                <input
+                  type="text"
+                  name="bookChapterNumber"
+                  [(ngModel)]="bookChapterNumber"
+                  [placeholder]="t('chapterNumber')"
+                />
+                <small>{{ t('chapterNumberHint') }}</small>
+              </label>
+
+              <div class="chapter-list" *ngIf="editingId">
+                <span>{{ t('existingChapters') }}</span>
+                <div class="chapter-chips" *ngIf="existingBookChapters().length; else noChaptersBlock">
+                  <button
+                    *ngFor="let chapter of existingBookChapters()"
+                    type="button"
+                    [class.active]="bookChapterNumber.trim() === chapter"
+                    (click)="selectChapter(chapter)"
+                  >
+                    {{ chapter }}
+                    <small>{{ chapterPageCount(chapter) }}</small>
+                  </button>
+                </div>
+                <ng-template #noChaptersBlock>
+                  <small class="empty-chapters">{{ t('noChapters') }}</small>
+                </ng-template>
+              </div>
+
+              <div class="manga-images-head">
+                <div class="file-button">
+                  <span>{{ t('chooseImages') }}</span>
+                  <input
+                    class="image-file-input"
+                    type="file"
+                    name="mangaImages"
+                    accept="image/*"
+                    multiple
+                    (change)="onMangaImagesChange($event)"
+                  />
+                </div>
+                <small class="file-hint">{{ mangaImageCountLabel() }}</small>
+              </div>
+
+              <p class="manga-images-hint">{{ t('mangaImagesHint') }}</p>
+
+              <div class="manga-image-list" *ngIf="mangaImageFiles.length">
+                <article class="manga-image-item" *ngFor="let image of mangaImageFiles; let index = index">
+                  <div class="manga-image-preview">
+                    <img [src]="image.previewUrl" [alt]="image.file.name" />
+                  </div>
+                  <div class="manga-image-info">
+                    <strong>{{ index + 1 }}. {{ image.file.name }}</strong>
+                    <small>{{ formatFileSize(image.file) }}</small>
+                  </div>
+                  <div class="manga-order-actions">
+                    <button
+                      type="button"
+                      class="button secondary"
+                      [disabled]="index === 0"
+                      (click)="moveMangaImage(index, -1)"
+                    >
+                      {{ t('moveUp') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="button secondary"
+                      [disabled]="index === mangaImageFiles.length - 1"
+                      (click)="moveMangaImage(index, 1)"
+                    >
+                      {{ t('moveDown') }}
+                    </button>
+                    <button type="button" class="button danger" (click)="removeMangaImage(index)">
+                      {{ t('remove') }}
+                    </button>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </ng-container>
+
+          <ng-template #singleBookContentFile>
+            <div class="book-file-upload">
+              <div class="book-file-icon">{{ contentKind.toUpperCase().slice(0, 1) }}</div>
+              <div class="image-upload-info">
+                <div class="file-button">
+                  <span>{{ bookContentActionLabel() }}</span>
+                  <input
+                    class="image-file-input"
+                    type="file"
+                    name="bookContentFile"
+                    [attr.accept]="bookContentAccept(contentKind)"
+                    (change)="onBookContentFileChange($event)"
+                  />
+                </div>
+                <small class="file-hint">{{ bookContentFileLabel() }}</small>
+              </div>
+            </div>
+          </ng-template>
+        </section>
+
+        <button type="submit" class="button primary" [disabled]="saving">
+          {{ saving ? t('saving') : editingId ? t('update') : t('create') }}
+        </button>
+      </form>
+
+      <section class="admin-panel data-panel">
+        <div class="panel-head">
+          <div>
+            <p>{{ t('data') }}</p>
+            <h2>{{ resourceLabel(selectedResource) }}</h2>
+          </div>
+          <button type="button" class="button secondary" (click)="loadRows()">{{ t('refresh') }}</button>
+        </div>
+
+        <div class="table-tools">
+          <input
+            type="search"
+            [placeholder]="t('search')"
+            [(ngModel)]="searchTerm"
+          />
+          <span>{{ filteredRows.length }} / {{ rows.length }}</span>
+        </div>
+
+        <div class="table-filters" *ngIf="selectedResource.endpoint === 'books'">
+          <label class="filter-label">
+            <span>{{ columnLabel('readers') }}</span>
+            <select [(ngModel)]="readerFilter" class="filter-select">
+              <option [ngValue]="''">All</option>
+              <option *ngFor="let reader of relationOptions['readers'] || []" [ngValue]="reader['id']">
+                {{ relationOptionLabel(reader) }}
+              </option>
+            </select>
+          </label>
+
+          <label class="filter-label">
+            <span>{{ columnLabel('authors') }}</span>
+            <select [(ngModel)]="authorFilter" class="filter-select">
+              <option [ngValue]="''">All</option>
+              <option *ngFor="let author of relationOptions['authors'] || []" [ngValue]="author['id']">
+                {{ relationOptionLabel(author) }}
+              </option>
+            </select>
+          </label>
+
+          <label class="filter-label">
+            <span>{{ columnLabel('categories') }}</span>
+            <select [(ngModel)]="categoryFilter" class="filter-select">
+              <option [ngValue]="''">All</option>
+              <option *ngFor="let category of relationOptions['categories'] || []" [ngValue]="category['id']">
+                {{ relationOptionLabel(category) }}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <div class="status error" *ngIf="error">{{ error }}</div>
+        <div class="status message" *ngIf="message">{{ message }}</div>
+        <div class="loading" *ngIf="loading">{{ t('loading') }}</div>
+
+        <div class="table-wrap" *ngIf="!loading">
+          <table>
+            <thead>
+              <tr>
+                <th *ngFor="let column of selectedResource.columns">{{ columnLabel(column) }}</th>
+                <th class="actions-heading"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of filteredRows">
+                <td *ngFor="let column of selectedResource.columns" [attr.data-label]="columnLabel(column)">
+                  <ng-container *ngIf="isImageColumn(column); else dataCell">
+                    <img
+                      *ngIf="imageCellSrc(row, column) as imageSrc; else emptyCell"
+                      class="table-image"
+                      [src]="imageSrc"
+                      [alt]="displayValue(row, column)"
+                    />
+                    <ng-template #emptyCell>-</ng-template>
+                  </ng-container>
+                  <ng-template #dataCell>
+                    <ng-container *ngIf="isBooleanColumn(column); else textCell">
+                      <button
+                        *ngIf="isBookVisibilityColumn(column); else booleanBadge"
+                        type="button"
+                        class="table-switch"
+                        [class.off]="!booleanCellValue(row, column)"
+                        [class.saving]="isBookVisibilitySaving(row)"
+                        [disabled]="isBookVisibilitySaving(row)"
+                        [attr.aria-checked]="booleanCellValue(row, column)"
+                        role="switch"
+                        (click)="toggleBookVisibility(row)"
+                      >
+                        <span class="table-switch-track"><span></span></span>
+                        <strong>{{ booleanCellLabel(row, column) }}</strong>
+                      </button>
+                      <ng-template #booleanBadge>
+                        <span
+                          class="boolean-pill"
+                          [class.off]="!booleanCellValue(row, column)"
+                        >
+                          {{ booleanCellLabel(row, column) }}
+                        </span>
+                      </ng-template>
+                    </ng-container>
+                    <ng-template #textCell>
+                      {{ displayValue(row, column) }}
+                    </ng-template>
+                  </ng-template>
+                </td>
+                <td class="row-actions">
+                  <div class="row-actions-inner">
+                    <button type="button" class="button secondary" (click)="edit(row)">{{ t('edit') }}</button>
+                    <button type="button" class="button danger" (click)="deleteRow(row)">{{ t('delete') }}</button>
+                  </div>
+                </td>
+              </tr>
+              <tr *ngIf="rows.length === 0">
+                <td class="empty" [attr.colspan]="selectedResource.columns.length + 1">{{ t('noRecords') }}</td>
+              </tr>
+              <tr *ngIf="rows.length > 0 && filteredRows.length === 0">
+                <td class="empty" [attr.colspan]="selectedResource.columns.length + 1">{{ t('emptySearch') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </section>
+</main>

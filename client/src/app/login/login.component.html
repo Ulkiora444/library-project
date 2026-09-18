@@ -1,0 +1,65 @@
+<main class="login-page" [ngClass]="'theme-' + theme">
+  <section class="login-panel">
+    <div class="login-header">
+      <div class="brand">
+        <span class="brand-mark">L</span>
+        <div>
+          <p>{{ t('admin') }}</p>
+          <h1>{{ t('welcome') }}</h1>
+        </div>
+      </div>
+
+      <div class="login-controls">
+        <label class="login-select">
+          <span>{{ t('language') }}</span>
+          <select [ngModel]="language" (ngModelChange)="setLanguageValue($event)">
+            <option *ngFor="let item of languages" [ngValue]="item.key">
+              {{ item.label }}
+            </option>
+          </select>
+        </label>
+
+        <label class="login-select">
+          <span>{{ t('theme') }}</span>
+          <select [ngModel]="theme" (ngModelChange)="setThemeValue($event)">
+            <option *ngFor="let item of themes" [ngValue]="item.key">
+              {{ t(item.labelKey) }}
+            </option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <p class="subtitle">{{ t('subtitle') }}</p>
+
+    <form class="login-form" (ngSubmit)="submit()">
+      <label>
+        <span>{{ t('login') }}</span>
+        <input
+          type="text"
+          name="login"
+          autocomplete="username"
+          [placeholder]="t('loginPlaceholder')"
+          [(ngModel)]="loginValue"
+        />
+      </label>
+
+      <label>
+        <span>{{ t('password') }}</span>
+        <input
+          type="password"
+          name="password"
+          autocomplete="current-password"
+          [placeholder]="t('passwordPlaceholder')"
+          [(ngModel)]="password"
+        />
+      </label>
+
+      <p class="error" *ngIf="error">{{ error }}</p>
+
+      <button type="submit" [disabled]="loading">
+        {{ loading ? t('checking') : t('button') }}
+      </button>
+    </form>
+  </section>
+</main>
